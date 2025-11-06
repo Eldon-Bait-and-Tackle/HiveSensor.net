@@ -20,10 +20,16 @@
     "storybook:build": "storybook build"
   },
   "dependencies": {
-    "@mantine/core": "8.3.1",
-    "@mantine/hooks": "8.3.1",
+    "@aws-amplify/ui-react": "^6.13.1",
+    "@mantine/core": "^8.3.6",
+    "@mantine/hooks": "^8.3.6",
+    "@mantine/notifications": "^8.3.6",
+    "@tabler/icons-react": "^3.35.0",
+    "aws-amplify": "^6.15.7",
+    "leaflet": "^1.9.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.8.2"
   },
   "devDependencies": {

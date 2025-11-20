@@ -1,19 +1,7 @@
 import './style.css';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import Chart from 'chart.js/auto';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-// Leaflet Icon Fix
-// @ts-ignore
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconUrl: markerIcon,
-    iconRetinaUrl: markerIcon2x,
-    shadowUrl: markerShadow,
-});
 
 interface SensorData {
     deviation: number;
@@ -26,13 +14,52 @@ interface SensorData {
 
 const API_ENDPOINT = 'http://localhost:5000';
 
-const map = L.map('map').setView([20, 0], 2);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 19,
-}).addTo(map);
+const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+        version: 8,
+        sources: {
+            'osm': {
+                type: 'raster',
+                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            }
+        },
+        layers: [{
+            id: 'osm',
+            type: 'raster',
+            source: 'osm',
+        }]
+    },
+    center: [0, 20],
+    zoom: 2
+});
 
-const markers: L.Marker[] = [];
+function drawNeighborConnection(start: [number, number], end: [number, number]) {
+    const source = map.getSource('neighbors') as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    source.setData({
+        type: 'FeatureCollection',
+        features: [{
+            type: 'Feature',
+            properties: {},
+            geometry: {
+                type: 'LineString',
+                coordinates: [start, end]
+            }
+        }]
+    });
+}
+
+
+
+
+// Add navigation controls (zoom buttons)
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+const markers: maplibregl.Marker[] = [];
 let barChartInstance: Chart | null = null;
 let doughnutChartInstance: Chart | null = null;
 
@@ -154,12 +181,14 @@ async function fetchAndDisplayData() {
         const data: SensorData[] = await response.json();
 
         // Map Logic
-        markers.forEach(marker => map.removeLayer(marker));
+        markers.forEach(marker => marker.remove());
         markers.length = 0;
 
+        const bounds = new maplibregl.LngLatBounds();
+
         data.forEach((sensor) => {
-            const marker = L.marker([sensor.lat, sensor.long]).addTo(map)
-                .bindPopup(`
+            const popup = new maplibregl.Popup({ offset: 25 })
+                .setHTML(`
                     <div class="font-sans">
                         <h3 class="font-bold text-indigo-600">Sensor Node</h3>
                         <div class="text-sm text-slate-600 mt-1">
@@ -168,12 +197,18 @@ async function fetchAndDisplayData() {
                         </div>
                     </div>
                 `);
+
+            const marker = new maplibregl.Marker()
+                .setLngLat([sensor.long, sensor.lat])
+                .setPopup(popup)
+                .addTo(map);
+
             markers.push(marker);
+            bounds.extend([sensor.long, sensor.lat]);
         });
 
         if (markers.length > 0) {
-            const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1));
+            map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
         }
 
         // Table Logic

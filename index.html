@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="/src/style.css" />
     <title>Dashboard</title>
 </head>
 <body>
@@ -40,7 +39,7 @@
             <div class="lg:col-span-5 flex flex-col gap-6 h-[500px]">
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col">
                     <div class="flex justify-between items-baseline mb-4">
-                        <h3 class="font-semibold text-gray-700">Environmental Metrics</h3>
+                        <h3 class="font-semibold text-gray-700">Temperature Metrics</h3>
                         <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Live</span>
                     </div>
                     <div class="relative flex-grow w-full">
@@ -50,8 +49,8 @@
 
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col">
                     <div class="flex justify-between items-baseline mb-4">
-                        <h3 class="font-semibold text-gray-700">System Health</h3>
-                        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Deviation</span>
+                        <h3 class="font-semibold text-gray-700">Network Deviations</h3>
+                        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Health</span>
                     </div>
                     <div class="relative flex-grow w-full">
                         <canvas id="doughnutChart"></canvas>
@@ -62,18 +61,18 @@
 
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="px-8 py-6 border-b border-gray-50 flex justify-between items-center">
-                <h3 class="font-semibold text-gray-800">Sensor Logs</h3>
+                <h3 class="font-semibold text-gray-800">Heuristics Logs</h3>
                 <span class="text-xs bg-gray-100 text-gray-500 px-3 py-1 rounded-full font-medium">Real-time</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                     <tr class="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                        <th class="px-8 py-4 bg-gray-50/50">Location</th>
-                        <th class="px-8 py-4 bg-gray-50/50">Temperature</th>
-                        <th class="px-8 py-4 bg-gray-50/50">Moisture</th>
-                        <th class="px-8 py-4 bg-gray-50/50">Status</th>
-                        <th class="px-8 py-4 bg-gray-50/50">Timestamp</th>
+                        <th class="px-6 py-4 bg-gray-50/50">Location</th>
+                        <th class="px-6 py-4 bg-gray-50/50">Temp</th>
+                        <th class="px-6 py-4 bg-gray-50/50">Avg Neighbor</th>
+                        <th class="px-6 py-4 bg-gray-50/50">Status</th>
+                        <th class="px-6 py-4 bg-gray-50/50">Deviation</th>
                     </tr>
                     </thead>
                     <tbody id="data-table-body" class="text-sm text-gray-600 divide-y divide-gray-50">

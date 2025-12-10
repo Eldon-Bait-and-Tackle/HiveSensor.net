@@ -1,26 +1,7 @@
-import './style.css';
+﻿import './style.css';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import Chart from 'chart.js/auto';
-
-interface HeuristicResult {
-    module_id: number;
-    self_temp: number;
-    avg_neighbor_temp: number | string;
-    within_range: boolean;
-    deviation: number;
-}
-
-interface MapNode {
-    id: number;
-    location: [number, number];
-    neighbors: number[];
-}
-
-interface MergedData extends HeuristicResult {
-    lat: number;
-    long: number;
-}
 
 const API_ENDPOINT = 'http://100.73.81.46:8082/api';
 
@@ -31,7 +12,7 @@ const map = new maplibregl.Map({
         sources: {
             'osm': {
                 type: 'raster',
-                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tiles: ['http://tile.openstreetmap.org/{z}/{x}/{y}.png'],
                 tileSize: 256,
                 attribution: '&copy; OpenStreetMap Contributors',
             }
@@ -48,41 +29,34 @@ const map = new maplibregl.Map({
 
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-const markers: maplibregl.Marker[] = [];
-let barChartInstance: Chart | null = null;
-let doughnutChartInstance: Chart | null = null;
+const markers = [];
+let barChartInstance = null;
+let doughnutChartInstance = null;
 
-function clampLat(lat: number): number {
+function clampLat(lat) {
     return Math.max(-85, Math.min(85, lat));
 }
 
-function updateConnectionLines(mapData: MapNode[]) {
-    if (map.getLayer('connections-layer')) {
-        map.removeLayer('connections-layer');
-    }
-    if (map.getSource('connections')) {
-        map.removeSource('connections');
-    }
+function updateConnectionLines(mapData) {
+    if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');
+    if (map.getSource('connections')) map.removeSource('connections');
 
-    const features: any[] = [];
-    const nodeMap = new Map(mapData.map(node => [node.id, node.location]));
-    const processedPairs = new Set<string>();
+    const features = [];
+    const nodeMap = new Map(mapData.map(node => [String(node.id), node.location]));
+    const processedPairs = new Set();
 
     mapData.forEach(node => {
         const startLat = clampLat(node.location[0]);
         const startLng = node.location[1];
 
-        node.neighbors.forEach(neighborId => {
-            const endLoc = nodeMap.get(neighborId);
+        if (!node.neighbors) return;
 
-            const pairId = [node.id, neighborId].sort((a, b) => a - b).join('-');
+        node.neighbors.forEach(neighborId => {
+            const endLoc = nodeMap.get(String(neighborId));
+            const pairId = [node.id, neighborId].sort().join('-');
 
             if (endLoc && !processedPairs.has(pairId)) {
                 processedPairs.add(pairId);
-
-                const endLat = clampLat(endLoc[0]);
-                const endLng = endLoc[1];
-
                 features.push({
                     type: 'Feature',
                     properties: {},
@@ -90,7 +64,7 @@ function updateConnectionLines(mapData: MapNode[]) {
                         type: 'LineString',
                         coordinates: [
                             [startLng, startLat],
-                            [endLng, endLat]
+                            [endLoc[1], clampLat(endLoc[0])]
                         ]
                     }
                 });
@@ -100,20 +74,14 @@ function updateConnectionLines(mapData: MapNode[]) {
 
     map.addSource('connections', {
         type: 'geojson',
-        data: {
-            type: 'FeatureCollection',
-            features: features
-        }
+        data: { type: 'FeatureCollection', features }
     });
 
     map.addLayer({
         id: 'connections-layer',
         type: 'line',
         source: 'connections',
-        layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-        },
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
             'line-color': '#6366f1',
             'line-width': 2,
@@ -122,7 +90,7 @@ function updateConnectionLines(mapData: MapNode[]) {
     });
 }
 
-function updateCharts(data: MergedData[]) {
+function updateCharts(data) {
     const labels = data.map(d => `ID: ${d.module_id}`);
     const temps = data.map(d => d.self_temp);
     const deviations = data.map(d => d.deviation);
@@ -137,7 +105,7 @@ function updateCharts(data: MergedData[]) {
     const chartFont = { family: "'Inter', sans-serif", size: 11 };
     const gridStyle = { color: '#f3f4f6', drawBorder: false };
 
-    const barCtx = document.getElementById('barChart') as HTMLCanvasElement;
+    const barCtx = document.getElementById('barChart');
     if (barChartInstance) barChartInstance.destroy();
 
     if (barCtx) {
@@ -162,7 +130,7 @@ function updateCharts(data: MergedData[]) {
         });
     }
 
-    const doughCtx = document.getElementById('doughnutChart') as HTMLCanvasElement;
+    const doughCtx = document.getElementById('doughnutChart');
     if (doughnutChartInstance) doughnutChartInstance.destroy();
 
     if (doughCtx) {
@@ -187,7 +155,7 @@ function updateCharts(data: MergedData[]) {
     }
 }
 
-async function apiCall(requestType: string, payload: any = {}) {
+async function apiCall(requestType, payload = {}) {
     const url = new URL(API_ENDPOINT);
     url.searchParams.append('request', requestType);
 
@@ -220,13 +188,13 @@ async function fetchAndDisplayData() {
             apiCall('get_heuristics')
         ]);
 
-        const mapData: MapNode[] = mapResponse.results;
-        const heuristicsData: HeuristicResult[] = heuristicsResponse.results;
+        const mapData = mapResponse.results || [];
+        const heuristicsData = heuristicsResponse.results || [];
 
         updateConnectionLines(mapData);
 
-        const mergedData: MergedData[] = heuristicsData.map(h => {
-            const node = mapData.find(m => m.id === h.module_id);
+        const mergedData = heuristicsData.map(h => {
+            const node = mapData.find(m => String(m.id) === String(h.module_id));
             const rawLat = node ? node.location[0] : 0;
             const rawLong = node ? node.location[1] : 0;
 
@@ -249,7 +217,7 @@ async function fetchAndDisplayData() {
                         <div class="text-sm text-slate-600 mt-1">
                             Temp: <b>${sensor.self_temp}°F</b><br>
                             Avg Neighbor: <b>${sensor.avg_neighbor_temp}</b><br>
-                            Deviation: <b>${sensor.deviation.toFixed(4)}</b>
+                            Deviation: <b>${Number(sensor.deviation).toFixed(4)}</b>
                         </div>
                     </div>
                 `);
@@ -278,7 +246,7 @@ async function fetchAndDisplayData() {
                         ${sensor.within_range ? 'Stable' : 'Outlier'}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-slate-400 text-xs">${sensor.deviation.toFixed(5)}</td>
+                <td class="px-6 py-4 text-slate-400 text-xs">${Number(sensor.deviation).toFixed(5)}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -288,7 +256,7 @@ async function fetchAndDisplayData() {
     } catch (error) {
         console.error(error);
         errorEl.classList.remove('hidden');
-        errorEl.textContent = `System Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errorEl.textContent = `System Error: ${error.message}`;
     } finally {
         loadingEl.classList.add('hidden');
     }
@@ -298,4 +266,5 @@ const refreshBtn = document.getElementById('refresh-btn');
 if (refreshBtn) refreshBtn.addEventListener('click', fetchAndDisplayData);
 
 map.once('load', fetchAndDisplayData);
+
 setInterval(fetchAndDisplayData, 30000);

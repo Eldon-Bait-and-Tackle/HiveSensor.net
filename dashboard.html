@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -26,7 +26,7 @@
         </nav>
     </header>
 
-    <main class="index-dashboard-grid">
+    <main class="dashboard-grid">
         <div class="card">
             <div id="map" class="map-wrapper"></div>
             <div id="loading" class="loader hidden">
@@ -35,8 +35,42 @@
             <div id="error" class="error-msg hidden"></div>
         </div>
 
-        
+        <div class="charts-col">
+            <div class="card chart-card">
+                <h3 class="card-title">Network Status</h3>
+                <div class="chart-container">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+            <div class="card chart-card">
+                <h3 class="card-title">Temperature Variance</h3>
+                <div class="chart-container">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+        </div>
     </main>
+
+    <div class="card">
+        <div class="table-header">
+            <h3>Sensor Telemetry</h3>
+            <span class="live-badge">Live</span>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>Temp (°F)</th>
+                    <th>Avg Neighbor</th>
+                    <th>Status</th>
+                    <th>Deviation</th>
+                </tr>
+                </thead>
+                <tbody id="data-table-body"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script>

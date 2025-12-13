@@ -66,7 +66,6 @@ async function exchangeCode(code) {
         console.log("Code:", code);
         console.log("Using backend proxy for token exchange...");
 
-        // Use our backend as a proxy to avoid CORS issues with Keycloak
         const response = await fetch(`${config.apiUrl}?request=exchange_token`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -137,7 +136,6 @@ function initApp() {
     console.log("Token exists:", !!storedToken);
     console.log("Desired mode:", desired);
 
-    // If we just authenticated and wanted private mode, switch to it
     if (desired === "private" && storedToken) {
         console.log("Setting mode to private after auth");
         const sel = document.getElementById("view-mode");
@@ -145,10 +143,7 @@ function initApp() {
         currentMode = "private";
         sessionStorage.removeItem("desired_mode");
     } else {
-        // Clean up any stale desired_mode
         if (desired) sessionStorage.removeItem("desired_mode");
-
-        // Default to public
         console.log("Defaulting to public mode");
         currentMode = "public";
         const sel = document.getElementById("view-mode");
@@ -171,7 +166,6 @@ function initApp() {
             const newMode = e.target.value;
             console.log("Mode changed to:", newMode);
 
-            // If switching to private without auth, trigger login
             if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
                 console.log("No token, triggering login");
                 login();
@@ -190,19 +184,34 @@ function initApp() {
     setInterval(fetchAndDisplayData, 30000);
 }
 
+// --- Claim Logic ---
+
 function openClaimModal() {
+    console.log("Claim button clicked!");
     const token = sessionStorage.getItem("auth_token");
+
     if (!token) {
+        console.log("No token found, redirecting to login.");
         alert("Please log in first to claim a module.");
         login();
         return;
     }
 
-    document.getElementById('claim-modal').style.display = 'flex';
-    document.getElementById('module-secret').value = '';
-    document.getElementById('claim-error').style.display = 'none';
-    document.getElementById('claim-success').style.display = 'none';
-    document.getElementById('module-secret').focus();
+    const modal = document.getElementById('claim-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('module-secret');
+        if(input) {
+            input.value = '';
+            input.focus();
+        }
+        const err = document.getElementById('claim-error');
+        const succ = document.getElementById('claim-success');
+        if(err) err.style.display = 'none';
+        if(succ) succ.style.display = 'none';
+    } else {
+        alert("Error: Modal HTML is missing.");
+    }
 }
 
 function closeClaimModal() {
@@ -215,7 +224,6 @@ async function claimModule() {
     const errorEl = document.getElementById('claim-error');
     const successEl = document.getElementById('claim-success');
 
-    // Clear previous messages
     errorEl.style.display = 'none';
     successEl.style.display = 'none';
 
@@ -239,7 +247,7 @@ async function claimModule() {
                 "Authorization": "Bearer " + token,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ module_secret: secret })
+            body: JSON.stringify({ secret: secret })
         });
 
         const data = await response.json();
@@ -247,8 +255,6 @@ async function claimModule() {
         if (response.ok) {
             successEl.textContent = `Success! Module ${data.module_id} has been claimed.`;
             successEl.style.display = 'block';
-
-            // Switch to private mode and refresh after a delay
             setTimeout(() => {
                 closeClaimModal();
                 currentMode = 'private';
@@ -265,6 +271,53 @@ async function claimModule() {
         errorEl.style.display = 'block';
     }
 }
+
+// --- Update Location Logic (New) ---
+
+async function handleUpdateLocation(moduleId) {
+    const lat = prompt("Enter new Latitude (e.g., 45.123):");
+    if (lat === null) return;
+
+    const long = prompt("Enter new Longitude (e.g., -110.123):");
+    if (long === null) return;
+
+    if (isNaN(lat) || isNaN(long) || lat === "" || long === "") {
+        alert("Invalid coordinates. Please enter numbers.");
+        return;
+    }
+
+    console.log(`Updating ${moduleId} to ${lat}, ${long}`);
+
+    try {
+        const token = sessionStorage.getItem('auth_token');
+        if (!token) {
+            alert("You must be logged in to update location.");
+            return;
+        }
+
+        const url = `${config.apiUrl}?request=update_location&module_id=${moduleId}&lat=${lat}&long=${long}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            alert("Location updated successfully!");
+            fetchAndDisplayData();
+        } else {
+            const errorText = await response.text();
+            alert("Update failed: " + errorText);
+        }
+    } catch (error) {
+        console.error("Error updating location:", error);
+        alert("Network error occurred.");
+    }
+}
+
+// --- Map & Data Logic ---
 
 function initMap() {
     map = new maplibregl.Map({
@@ -335,8 +388,6 @@ async function fetchAndDisplayData() {
                 }
             });
 
-            console.log("Response status:", response.status);
-
             if (response.status === 401) {
                 console.error("Token expired or invalid");
                 logout();
@@ -345,24 +396,18 @@ async function fetchAndDisplayData() {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error("API Error:", response.status, errorText);
                 throw new Error(`API returned ${response.status}`);
             }
 
             const json = await response.json();
-            console.log("Received data:", json);
-
             const modules = json.modules || [];
             const heuristics = json.heuristics || [];
 
-            // Clear connection lines for private mode
             if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');
             if (map.getSource('connections')) map.removeSource('connections');
 
-            // Merge modules with heuristics
             mergedData = modules.map(m => {
                 const heuristic = heuristics.find(h => h.module_id === m.module_id);
-
                 let lat = 0, long = 0;
                 if (m.location) {
                     if (m.location.lat !== undefined) {
@@ -402,6 +447,7 @@ async function fetchAndDisplayData() {
 function renderVisuals(data) {
     data.sort((a, b) => String(a.module_id).localeCompare(String(b.module_id), undefined, { numeric: true }));
 
+    // 1. Update Map Markers
     markers.forEach(marker => marker.remove());
     markers.length = 0;
     const bounds = new maplibregl.LngLatBounds();
@@ -428,11 +474,14 @@ function renderVisuals(data) {
 
     if (markers.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
+    // 2. Update Table
     const tableBody = document.getElementById('data-table-body');
     if (tableBody) {
         tableBody.innerHTML = '';
         data.forEach((sensor) => {
             const row = document.createElement('tr');
+
+            // Create the main data cells
             row.innerHTML = `
                 <td>${sensor.module_id}</td>
                 <td class="mono">${sensor.lat.toFixed(4)}, ${sensor.long.toFixed(4)}</td>
@@ -445,6 +494,27 @@ function renderVisuals(data) {
                 </td>
                 <td class="val-dim">${Number(sensor.deviation).toFixed(5)}</td>
             `;
+
+            // If we are in PRIVATE mode, add the Update Location button column
+            if (currentMode === 'private') {
+                const actionCell = document.createElement('td');
+                const updateBtn = document.createElement('button');
+                updateBtn.textContent = 'Update Loc';
+                updateBtn.className = 'status-pill'; // Reusing style, or add a new class in CSS
+                updateBtn.style.cursor = 'pointer';
+                updateBtn.style.backgroundColor = '#6366f1';
+                updateBtn.style.color = 'white';
+                updateBtn.style.border = 'none';
+
+                // Attach the event handler
+                updateBtn.onclick = function() {
+                    handleUpdateLocation(sensor.module_id);
+                };
+
+                actionCell.appendChild(updateBtn);
+                row.appendChild(actionCell);
+            }
+
             tableBody.appendChild(row);
         });
     }
@@ -559,39 +629,6 @@ function updateCharts(data) {
                 cutout: '70%'
             }
         });
-    }
-}
-
-function openClaimModal() {
-    console.log("Claim button clicked!"); // Debug log
-
-    const token = sessionStorage.getItem("auth_token");
-
-    if (!token) {
-        console.log("No token found, redirecting to login.");
-        alert("Please log in first to claim a module.");
-        login();
-        return;
-    }
-
-    const modal = document.getElementById('claim-modal');
-    if (modal) {
-        console.log("Showing modal...");
-        modal.style.display = 'flex';
-
-        const input = document.getElementById('module-secret');
-        if(input) {
-            input.value = '';
-            input.focus();
-        }
-
-        const err = document.getElementById('claim-error');
-        const succ = document.getElementById('claim-success');
-        if(err) err.style.display = 'none';
-        if(succ) succ.style.display = 'none';
-    } else {
-        console.error("Error: Could not find element with id 'claim-modal'");
-        alert("Error: Modal HTML is missing.");
     }
 }
 

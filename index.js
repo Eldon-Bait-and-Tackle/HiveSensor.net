@@ -428,11 +428,34 @@ function renderVisuals(data) {
 
     if (markers.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
+    const tableHead = document.querySelector('thead tr');
+    const actionHeaderId = 'action-header';
+    let actionHeader = document.getElementById(actionHeaderId);
+
+    if (currentMode === 'private' && !actionHeader) {
+        const th = document.createElement('th');
+        th.id = actionHeaderId;
+        th.textContent = 'Actions';
+        tableHead.appendChild(th);
+    } else if (currentMode !== 'private' && actionHeader) {
+        actionHeader.remove();
+    }
+
     const tableBody = document.getElementById('data-table-body');
     if (tableBody) {
         tableBody.innerHTML = '';
         data.forEach((sensor) => {
             const row = document.createElement('tr');
+            let actionCell = '';
+
+            if (currentMode === 'private') {
+                actionCell = `
+                    <td>
+                        <button class="btn-link" style="font-size:0.8em;" onclick="updateLocation('${sensor.module_id}')">Update Loc</button>
+                    </td>
+                `;
+            }
+
             row.innerHTML = `
                 <td>${sensor.module_id}</td>
                 <td class="mono">${sensor.lat.toFixed(4)}, ${sensor.long.toFixed(4)}</td>
@@ -444,6 +467,7 @@ function renderVisuals(data) {
                     </span>
                 </td>
                 <td class="val-dim">${Number(sensor.deviation).toFixed(5)}</td>
+                ${actionCell}
             `;
             tableBody.appendChild(row);
         });
@@ -592,6 +616,53 @@ function openClaimModal() {
     } else {
         console.error("Error: Could not find element with id 'claim-modal'");
         alert("Error: Modal HTML is missing.");
+    }
+}
+
+async function updateLocation(moduleId) {
+    const latStr = prompt("Enter new Latitude (Float):");
+    if (latStr === null) return;
+    const longStr = prompt("Enter new Longitude (Float):");
+    if (longStr === null) return;
+
+    const lat = parseFloat(latStr);
+    const long = parseFloat(longStr);
+
+    if (isNaN(lat) || isNaN(long)) {
+        alert("Invalid coordinates. Please enter valid floats.");
+        return;
+    }
+
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+        login();
+        return;
+    }
+
+    try {
+        const response = await fetch(`${config.apiUrl}?request=update_location`, {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                module_id: moduleId,
+                latitude: lat,
+                longitude: long
+            })
+        });
+
+        if (response.ok) {
+            alert("Location updated successfully.");
+            fetchAndDisplayData();
+        } else {
+            const err = await response.json();
+            alert("Update failed: " + (err.error || "Unknown error"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network error occurred.");
     }
 }
 

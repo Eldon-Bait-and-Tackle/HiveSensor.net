@@ -9,13 +9,17 @@
     --primary: #c292f5;
     --primary-hover: #da2f7b;
     --border: #f1f5f9;
-    --success-bg: #ff84cc;
-    --success-text: #047857;
-    --danger-bg: #fee2e2;
-    --danger-text: #b91c1c;
+    --success-bg: #047857;
+    --success-text: #1e293b;
+    --danger-bg: #b91c1c;
+    --danger-text: #1e293b;
     --radius: 1rem;
     --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
+
+
+
+
 
 * {
     box-sizing: border-box;

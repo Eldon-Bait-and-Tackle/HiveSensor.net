@@ -239,7 +239,7 @@ async function claimModule() {
                 "Authorization": "Bearer " + token,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ secret: secret })
+            body: JSON.stringify({ module_secret: secret })
         });
 
         const data = await response.json();

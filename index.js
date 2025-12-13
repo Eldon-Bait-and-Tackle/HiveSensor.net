@@ -667,3 +667,5 @@ async function updateLocation(moduleId) {
 }
 
 initAuth();
+
+

@@ -111,7 +111,15 @@ function initApp() {
     const modeSelect = document.getElementById('view-mode');
     if (modeSelect) {
         modeSelect.addEventListener('change', (e) => {
-            currentMode = e.target.value;
+            const newMode = e.target.value;
+
+            // If switching to private without auth, trigger login
+            if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
+                login();
+                return; // Don't change mode yet, wait for auth
+            }
+
+            currentMode = newMode;
             fetchAndDisplayData();
         });
     }
@@ -174,10 +182,24 @@ async function fetchAndDisplayData() {
             });
 
         } else {
-            const token = checkAuthOrLogin();
-            if (!token) return;
+            // Check for token before making request
+            const token = sessionStorage.getItem("auth_token");
+            if (!token) {
+                // Revert to public mode if no token
+                currentMode = 'public';
+                const sel = document.getElementById('view-mode');
+                if(sel) sel.value = 'public';
 
-            const response = await fetch(`${config.apiUrl}?request=get_user_modules`, {
+                if (errorEl) {
+                    errorEl.classList.remove('hidden');
+                    errorEl.textContent = 'Authentication required for private mode. Switched to public view.';
+                }
+
+                // Retry with public mode
+                return fetchAndDisplayData();
+            }
+
+            const response = await fetch(`${config.apiUrl}?request=get_owned_modules`, {
                 method: "GET",
                 headers: {
                     "Authorization": "Bearer " + token,
@@ -185,7 +207,10 @@ async function fetchAndDisplayData() {
                 }
             });
 
-            if (response.status === 401) { logout(); return; }
+            if (response.status === 401) {
+                logout();
+                return;
+            }
 
             const json = await response.json();
             const modules = json.modules || [];
@@ -359,7 +384,7 @@ function updateCharts(data) {
                     y: { display: false, grid: { display: false } },
                     x: { display: false, grid: { display: false } }
                 }
-            }
+            } 
         });
     }
 

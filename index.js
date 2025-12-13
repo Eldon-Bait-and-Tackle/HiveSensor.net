@@ -400,10 +400,8 @@ async function fetchAndDisplayData() {
 }
 
 function renderVisuals(data) {
-    // 1. Sort Data
     data.sort((a, b) => String(a.module_id).localeCompare(String(b.module_id), undefined, { numeric: true }));
 
-    // 2. Update Map Markers
     markers.forEach(marker => marker.remove());
     markers.length = 0;
     const bounds = new maplibregl.LngLatBounds();
@@ -430,34 +428,26 @@ function renderVisuals(data) {
 
     if (markers.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
-    // 3. Update Table Header (Rebuild to ensure sync)
-    const tableHeadRow = document.querySelector('thead tr');
-    if (tableHeadRow) {
-        tableHeadRow.innerHTML = `
-            <th>ID</th>
-            <th>Location</th>
-            <th>Temp (°C)</th>
-            <th>Avg Neighbor</th>
-            <th>Status</th>
-            <th>Deviation</th>
-        `;
-        // Only add Action header if in private mode
-        if (currentMode === 'private') {
-            const th = document.createElement('th');
-            th.textContent = 'Actions';
-            tableHeadRow.appendChild(th);
-        }
+    const tableHead = document.querySelector('thead tr');
+    const actionHeaderId = 'action-header';
+    let actionHeader = document.getElementById(actionHeaderId);
+
+    if (currentMode === 'private' && !actionHeader) {
+        const th = document.createElement('th');
+        th.id = actionHeaderId;
+        th.textContent = 'Actions';
+        tableHead.appendChild(th);
+    } else if (currentMode !== 'private' && actionHeader) {
+        actionHeader.remove();
     }
 
-    // 4. Update Table Body
     const tableBody = document.getElementById('data-table-body');
     if (tableBody) {
         tableBody.innerHTML = '';
         data.forEach((sensor) => {
             const row = document.createElement('tr');
-
-            // Generate Action Cell if in private mode
             let actionCell = '';
+
             if (currentMode === 'private') {
                 actionCell = `
                     <td>
@@ -481,6 +471,10 @@ function renderVisuals(data) {
             `;
             tableBody.appendChild(row);
         });
+    }
+
+    updateCharts(data);
+}
 
 function updateConnectionLines(mapData) {
     if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');

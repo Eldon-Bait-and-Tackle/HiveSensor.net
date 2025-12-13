@@ -1,5 +1,4 @@
-﻿// --- CONFIGURATION ---
-const config = {
+﻿const config = {
     authUrl: "https://auth.eldonbaitandtackle.net/realms/hsn_kc/protocol/openid-connect/auth",
     tokenUrl: "https://auth.eldonbaitandtackle.net/realms/hsn_kc/protocol/openid-connect/token",
     clientId: "public_client",
@@ -8,46 +7,33 @@ const config = {
     apiUrl: "https://hsn.eldonbaitandtackle.net/api"
 };
 
-// --- GLOBAL STATE ---
 let currentMode = 'public';
 let map;
 let markers = [];
 let barChartInstance = null;
 let doughnutChartInstance = null;
 
-// --- AUTH LOGIC ---
-function initApp() {
+async function initAuth() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
     const storedToken = sessionStorage.getItem("auth_token");
-    const desired = sessionStorage.getItem("desired_mode");
 
-    if (desired === "private" && storedToken) {
-        const sel = document.getElementById("view-mode");
-        if(sel) sel.value = "private";
-        currentMode = "private";
-        sessionStorage.removeItem("desired_mode");
-    } else {
-        // Safety: If we wanted private but have no token, force public to stop loop
-        if (desired) sessionStorage.removeItem("desired_mode");
-        currentMode = "public";
-        const sel = document.getElementById("view-mode");
-        if(sel) sel.value = "public";
+    if (code) {
+        updateStatus("Exchanging code...");
+        await exchangeCode(code);
+
+        if (!sessionStorage.getItem("auth_token")) {
+            sessionStorage.removeItem("desired_mode");
+            console.error("Token exchange failed. Reverting to public mode.");
+        }
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (storedToken) {
+        updateStatus("Authenticated");
+        document.getElementById("logout-btn").style.display = "block";
     }
 
-    initMap();
-
-    const refreshBtn = document.getElementById('refresh-btn');
-    if (refreshBtn) refreshBtn.addEventListener('click', fetchAndDisplayData);
-
-    const modeSelect = document.getElementById('view-mode');
-    if (modeSelect) {
-        modeSelect.addEventListener('change', (e) => {
-            currentMode = e.target.value;
-            fetchAndDisplayData();
-        });
-    }
-
-    fetchAndDisplayData();
-    setInterval(fetchAndDisplayData, 30000);
+    initApp();
 }
 
 function login() {
@@ -100,14 +86,20 @@ function checkAuthOrLogin() {
     return token;
 }
 
-// --- APP & VISUALIZATION LOGIC ---
-
 function initApp() {
-    if (sessionStorage.getItem("desired_mode") === "private") {
+    const storedToken = sessionStorage.getItem("auth_token");
+    const desired = sessionStorage.getItem("desired_mode");
+
+    if (desired === "private" && storedToken) {
         const sel = document.getElementById("view-mode");
         if(sel) sel.value = "private";
         currentMode = "private";
         sessionStorage.removeItem("desired_mode");
+    } else {
+        if (desired) sessionStorage.removeItem("desired_mode");
+        currentMode = "public";
+        const sel = document.getElementById("view-mode");
+        if(sel) sel.value = "public";
     }
 
     initMap();
@@ -163,7 +155,6 @@ async function fetchAndDisplayData() {
         let mergedData = [];
 
         if (currentMode === 'public') {
-            // PUBLIC: Network View
             const [mapResponse, heuristicsResponse] = await Promise.all([
                 fetch(`${config.apiUrl}?request=get_map`).then(r => r.json()),
                 fetch(`${config.apiUrl}?request=get_heuristics`).then(r => r.json())
@@ -182,11 +173,9 @@ async function fetchAndDisplayData() {
             });
 
         } else {
-            // PRIVATE: User Modules
             const token = checkAuthOrLogin();
             if (!token) return;
 
-            // Updated to use 'get_user_modules' as requested
             const response = await fetch(`${config.apiUrl}?request=get_user_modules`, {
                 method: "GET",
                 headers: {
@@ -200,7 +189,6 @@ async function fetchAndDisplayData() {
             const json = await response.json();
             const modules = json.modules || [];
 
-            // Clear public lines
             if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');
             if (map.getSource('connections')) map.removeSource('connections');
 
@@ -235,7 +223,6 @@ async function fetchAndDisplayData() {
 }
 
 function renderVisuals(data) {
-    // 1. Map Markers
     markers.forEach(marker => marker.remove());
     markers.length = 0;
     const bounds = new maplibregl.LngLatBounds();
@@ -262,7 +249,6 @@ function renderVisuals(data) {
 
     if (markers.length > 0) map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
-    // 2. Table
     const tableBody = document.getElementById('data-table-body');
     if (tableBody) {
         tableBody.innerHTML = '';
@@ -284,7 +270,6 @@ function renderVisuals(data) {
         });
     }
 
-    // 3. Charts
     updateCharts(data);
 }
 
@@ -398,5 +383,4 @@ function updateCharts(data) {
     }
 }
 
-// Start
 initAuth();

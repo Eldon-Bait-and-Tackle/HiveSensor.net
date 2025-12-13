@@ -109,8 +109,7 @@ body {
 .index-dashboard-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 2rem;
-    height: 60em;
+    height: 50rem;
 }
 
 @media (min-width: 1024px) {

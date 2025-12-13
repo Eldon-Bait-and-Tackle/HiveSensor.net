@@ -9,9 +9,9 @@
     --primary: #c292f5;
     --primary-hover: #da2f7b;
     --border: #f1f5f9;
-    --success-bg: #047857;
+    --success-bg: #0fb487;
     --success-text: #1e293b;
-    --danger-bg: #b91c1c;
+    --danger-bg: #da2f7b;
     --danger-text: #1e293b;
     --radius: 1rem;
     --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -29,7 +29,7 @@
 
 .img_logo{
     display: flex;
-    height: 5vmin;
+    height: 7vmin;
 }
 
 body {

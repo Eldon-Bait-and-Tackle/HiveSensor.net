@@ -4,60 +4,75 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HSN Module Management</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800">
+<body>
 
-<div id="app" class="max-w-4xl mx-auto px-4 py-8 space-y-8">
-    <header class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-        <h1 class="text-2xl font-bold tracking-tight">Module <span class="text-indigo-600">Management</span></h1>
+<div id="app" class="container">
+    <header class="header">
+        <div class="logo">
+            <img src="hsn_logo.svg" alt="Hive Sensor Network Logo" class="img_logo"/>
+            <h1 class="logo">Module Management</h1>
+        </div>
     </header>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <h2 class="text-xl font-semibold mb-4">Claim New Module</h2>
-        <div class="flex space-x-4">
-            <input type="text" id="claim-module-id" placeholder="Enter Module ID" class="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
-            <button id="claim-btn" class="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors">Claim Module</button>
+    <div class="card">
+        <h2 class="card-title">Claim New Module</h2>
+        <div style="display: flex; gap: 1rem;">
+            <input type="text" id="claim-module-id" placeholder="Enter Device Secret" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.5rem;">
+            <button id="claim-btn" class="btn-link" style="background: var(--primary); color: var(--bg-surface); padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500;">Claim Module</button>
         </div>
-        <p id="claim-message" class="mt-2 text-sm"></p>
+        <p id="claim-message" style="margin-top: 0.5rem; font-size: 0.875rem;"></p>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-50 bg-slate-50/50">
-            <h2 class="font-semibold text-xl text-slate-800">Your Owned Modules</h2>
+    <div class="card">
+        <div class="table-header">
+            <h2 class="card-title" style="margin: 0;">Your Owned Modules</h2>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
+        <div class="table-wrapper">
+            <table>
                 <thead>
-                <tr class="text-xs font-semibold text-slate-400 uppercase border-b border-slate-100">
-                    <th class="px-6 py-3">ID</th>
-                    <th class="px-6 py-3">Location (Lat, Long)</th>
-                    <th class="px-6 py-3">Actions</th>
+                <tr>
+                    <th>ID</th>
+                    <th>Location (Lat, Long)</th>
+                    <th>Actions</th>
                 </tr>
                 </thead>
-                <tbody id="modules-table-body" class="divide-y divide-slate-50 text-sm"></tbody>
+                <tbody id="modules-table-body"></tbody>
             </table>
         </div>
     </div>
-    <div id="error" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 hidden"></div>
+    <div id="error" class="error-msg hidden" style="position: static; margin: 0;"></div>
 </div>
 
 <script>
     const API_ENDPOINT = 'https://hsn.eldonbaitandtackle.net/api/';
-    const AUTH_TOKEN = 'your_retrieved_auth_token'; // Placeholder for the actual token
+    const AUTH_TOKEN = 'your_retrieved_auth_token';
 
-    async function apiCall(requestType, payload = {}) {
+    async function apiCall(requestType, method = 'GET', payload = {}) {
         const url = new URL(API_ENDPOINT);
         url.searchParams.append('request', requestType);
-        for (const [key, value] of Object.entries(payload)) {
-            url.searchParams.append(key, String(value));
+
+        let body = null;
+        if (method === 'GET' || method === 'OPTIONS') {
+            for (const [key, value] of Object.entries(payload)) {
+                url.searchParams.append(key, String(value));
+            }
+        } else if (method === 'POST') {
+            body = JSON.stringify({...payload, auth_token: AUTH_TOKEN});
         }
-        const response = await fetch(url.toString());
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const response = await fetch(url.toString(), {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: body
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+            throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
         return await response.json();
     }
 
@@ -68,24 +83,23 @@
         tableBody.innerHTML = '';
 
         try {
-            const response = await apiCall('get_owned_modules', { token: AUTH_TOKEN });
-            const modules = response.results || [];
+            const response = await apiCall('get_owned_modules', 'GET', { auth_token: AUTH_TOKEN });
+            const modules = response.modules || [];
 
             modules.forEach((module) => {
                 const row = document.createElement('tr');
-                row.className = 'hover:bg-slate-50 transition-colors';
+                const id = module.module_id || module.id;
                 const [lat, long] = module.location || [0, 0];
-                const locationDisplay = `${lat.toFixed(4)}, ${long.toFixed(4)}`;
 
                 row.innerHTML = `
-                    <td class="px-6 py-4 font-mono text-xs text-slate-500">${module.id}</td>
-                    <td class="px-6 py-4">
-                        <input type="number" step="0.0001" id="lat-${module.id}" value="${lat.toFixed(4)}" class="w-20 p-1 border rounded text-xs">, 
-                        <input type="number" step="0.0001" id="long-${module.id}" value="${long.toFixed(4)}" class="w-20 p-1 border rounded text-xs">
+                    <td class="mono val-dim" style="font-size: 0.875rem; padding: 1rem 1.5rem;">${id}</td>
+                    <td>
+                        <input type="number" step="0.0001" id="lat-${id}" value="${lat.toFixed(4)}" style="width: 5rem; padding: 0.25rem; border: 1px solid var(--border); border-radius: 0.25rem; font-size: 0.75rem;">,
+                        <input type="number" step="0.0001" id="long-${id}" value="${long.toFixed(4)}" style="width: 5rem; padding: 0.25rem; border: 1px solid var(--border); border-radius: 0.25rem; font-size: 0.75rem;">
                     </td>
-                    <td class="px-6 py-4">
-                        <button onclick="updateLocation(${module.id})" class="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">Update</button>
-                        <span id="status-${module.id}" class="ml-2 text-xs"></span>
+                    <td>
+                        <button onclick="updateLocation(${id})" class="btn-link" style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 0.25rem; font-size: 0.75rem;">Update</button>
+                        <span id="status-${id}" class="val-dim" style="margin-left: 0.5rem;"></span>
                     </td>
                 `;
                 tableBody.appendChild(row);
@@ -103,54 +117,53 @@
         const long = parseFloat(document.getElementById(`long-${moduleId}`).value);
         const statusEl = document.getElementById(`status-${moduleId}`);
         statusEl.textContent = 'Updating...';
-        statusEl.className = 'ml-2 text-xs text-blue-500';
+        statusEl.className = 'val-secondary';
 
         try {
-            await apiCall('update_module_location', {
-                token: AUTH_TOKEN,
+            await apiCall('update_location', 'POST', {
                 module_id: moduleId,
-                lat: lat,
-                long: long
+                latitude: lat,
+                longitude: long
             });
             statusEl.textContent = 'Success!';
-            statusEl.className = 'ml-2 text-xs text-emerald-600';
+            statusEl.className = 'status-pill stable';
         } catch (error) {
             console.error(error);
             statusEl.textContent = 'Failed!';
-            statusEl.className = 'ml-2 text-xs text-red-600';
+            statusEl.className = 'status-pill outlier';
         } finally {
-            // Clear status message after a short delay
-            setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'ml-2 text-xs'; }, 3000);
+            setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'val-dim'; }, 3000);
         }
     }
 
     document.getElementById('claim-btn').addEventListener('click', async () => {
-        const moduleIdInput = document.getElementById('claim-module-id');
+        const secretInput = document.getElementById('claim-module-id');
         const claimMessageEl = document.getElementById('claim-message');
-        const moduleId = moduleIdInput.value.trim();
+        const secret = secretInput.value.trim();
 
-        if (!moduleId) {
-            claimMessageEl.textContent = 'Please enter a Module ID.';
-            claimMessageEl.className = 'mt-2 text-sm text-red-600';
+        if (!secret) {
+            claimMessageEl.textContent = 'Please enter the device secret.';
+            claimMessageEl.style.color = 'var(--danger-text)';
             return;
         }
 
         claimMessageEl.textContent = 'Claiming...';
-        claimMessageEl.className = 'mt-2 text-sm text-blue-600';
+        claimMessageEl.style.color = 'var(--val-secondary)';
 
         try {
-            await apiCall('claim_module', {
-                token: AUTH_TOKEN,
-                module_id: moduleId
+            const response = await apiCall('claim_device', 'POST', {
+                secret: secret
             });
+            const moduleId = response.module_id;
+
             claimMessageEl.textContent = `Module ${moduleId} claimed successfully!`;
-            claimMessageEl.className = 'mt-2 text-sm text-emerald-600';
-            moduleIdInput.value = '';
-            fetchAndDisplayModules(); // Refresh list
+            claimMessageEl.style.color = 'var(--success-text)';
+            secretInput.value = '';
+            fetchAndDisplayModules();
         } catch (error) {
             console.error(error);
-            claimMessageEl.textContent = `Claim failed for Module ${moduleId}: ${error.message}`;
-            claimMessageEl.className = 'mt-2 text-sm text-red-600';
+            claimMessageEl.textContent = `Claim failed: ${error.message}`;
+            claimMessageEl.style.color = 'var(--danger-text)';
         }
     });
 

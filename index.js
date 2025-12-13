@@ -162,6 +162,9 @@ function initApp() {
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) refreshBtn.addEventListener('click', fetchAndDisplayData);
 
+    const claimBtn = document.getElementById('claim-btn');
+    if (claimBtn) claimBtn.addEventListener('click', openClaimModal);
+
     const modeSelect = document.getElementById('view-mode');
     if (modeSelect) {
         modeSelect.addEventListener('change', (e) => {
@@ -185,6 +188,82 @@ function initApp() {
     console.log("Calling initial fetchAndDisplayData...");
     fetchAndDisplayData();
     setInterval(fetchAndDisplayData, 30000);
+}
+
+function openClaimModal() {
+    const token = sessionStorage.getItem("auth_token");
+    if (!token) {
+        alert("Please log in first to claim a module.");
+        login();
+        return;
+    }
+
+    document.getElementById('claim-modal').style.display = 'flex';
+    document.getElementById('module-secret').value = '';
+    document.getElementById('claim-error').style.display = 'none';
+    document.getElementById('claim-success').style.display = 'none';
+    document.getElementById('module-secret').focus();
+}
+
+function closeClaimModal() {
+    document.getElementById('claim-modal').style.display = 'none';
+}
+
+async function claimModule() {
+    const token = sessionStorage.getItem("auth_token");
+    const secret = document.getElementById('module-secret').value.trim();
+    const errorEl = document.getElementById('claim-error');
+    const successEl = document.getElementById('claim-success');
+
+    // Clear previous messages
+    errorEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!secret) {
+        errorEl.textContent = 'Please enter a module secret key.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    if (!token) {
+        errorEl.textContent = 'Authentication required. Please log in.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    try {
+        console.log("Claiming module with secret:", secret);
+        const response = await fetch(`${config.apiUrl}?request=claim_device`, {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ secret: secret })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            successEl.textContent = `Success! Module ${data.module_id} has been claimed.`;
+            successEl.style.display = 'block';
+
+            // Switch to private mode and refresh after a delay
+            setTimeout(() => {
+                closeClaimModal();
+                currentMode = 'private';
+                document.getElementById('view-mode').value = 'private';
+                fetchAndDisplayData();
+            }, 2000);
+        } else {
+            errorEl.textContent = data.message || data.error || 'Failed to claim module.';
+            errorEl.style.display = 'block';
+        }
+    } catch (error) {
+        console.error("Claim error:", error);
+        errorEl.textContent = 'Network error. Please try again.';
+        errorEl.style.display = 'block';
+    }
 }
 
 function initMap() {

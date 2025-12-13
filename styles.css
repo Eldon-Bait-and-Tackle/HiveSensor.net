@@ -263,3 +263,127 @@ tr:hover {
 .popup-content { font-family: 'Inter', sans-serif; padding: 0.5rem; }
 .popup-title { font-weight: 700; color: var(--primary); }
 .popup-detail { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+/* --- Auth & Navigation Controls --- */
+.auth-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.mode-select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #1e293b;
+    color: white;
+    cursor: pointer;
+}
+
+.btn-logout {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.9em;
+    display: none;
+}
+
+.auth-status {
+    font-size: 0.8em;
+    color: #94a3b8;
+    margin-right: 10px;
+}
+
+/* --- Modal / Popup Styles --- */
+.modal-overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #1e293b;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    color: white;
+    border: 1px solid #334155;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+}
+
+.modal-input {
+    width: 100%;
+    padding: 10px;
+    margin: 15px 0;
+    border-radius: 4px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+    box-sizing: border-box;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-confirm {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-cancel {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #475569;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-confirm:hover {
+    background: #2563eb;
+}
+
+.btn-cancel:hover {
+    color: white;
+    border-color: white;
+}
+
+.claim-msg {
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    display: none;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.claim-error {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.claim-success {
+    background: #dcfce7;
+    color: #15803d;
+}

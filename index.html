@@ -11,13 +11,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <link rel="stylesheet" href="styles.css">
-
-    <style>
-        .auth-controls { display: flex; gap: 10px; align-items: center; }
-        .mode-select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: #1e293b; color: white; cursor: pointer; }
-        .btn-logout { background: #ef4444; color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-size: 0.9em; display: none; }
-        .auth-status { font-size: 0.8em; color: #94a3b8; margin-right: 10px; }
-    </style>
 </head>
 <body>
 
@@ -34,6 +27,7 @@
                     <option value="public">All Network (Public)</option>
                     <option value="private">My Modules (Private)</option>
                 </select>
+                <button id="claim-btn" class="btn-link">Claim Module</button>
                 <button id="logout-btn" class="btn-logout" onclick="logout()">Logout</button>
                 <button id="refresh-btn" class="btn-link">Refresh</button>
             </div>
@@ -61,7 +55,7 @@
 
     <div class="card">
         <div class="table-header">
-            <h3></h3>Telemetry</h3>
+            <h3>Telemetry</h3>
             <span class="live-badge">Live</span>
         </div>
         <div class="table-wrapper">
@@ -78,6 +72,23 @@
                 </thead>
                 <tbody id="data-table-body"></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<div id="claim-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Claim New Module</h3>
+        <p style="font-size: 0.9em; color: #94a3b8;">Enter the unique secret key located on your sensor module hardware.</p>
+
+        <input type="text" id="module-secret" class="modal-input" placeholder="Enter Secret Key" />
+
+        <div id="claim-error" class="claim-msg claim-error"></div>
+        <div id="claim-success" class="claim-msg claim-success"></div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeClaimModal()">Cancel</button>
+            <button class="btn-confirm" onclick="claimModule()">Claim Module</button>
         </div>
     </div>
 </div>

@@ -66,7 +66,6 @@ async function exchangeCode(code) {
         console.log("Code:", code);
         console.log("Using backend proxy for token exchange...");
 
-        // Use our backend as a proxy to avoid CORS issues with Keycloak
         const response = await fetch(`${config.apiUrl}?request=exchange_token`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -137,7 +136,6 @@ function initApp() {
     console.log("Token exists:", !!storedToken);
     console.log("Desired mode:", desired);
 
-    // If we just authenticated and wanted private mode, switch to it
     if (desired === "private" && storedToken) {
         console.log("Setting mode to private after auth");
         const sel = document.getElementById("view-mode");
@@ -145,10 +143,7 @@ function initApp() {
         currentMode = "private";
         sessionStorage.removeItem("desired_mode");
     } else {
-        // Clean up any stale desired_mode
         if (desired) sessionStorage.removeItem("desired_mode");
-
-        // Default to public
         console.log("Defaulting to public mode");
         currentMode = "public";
         const sel = document.getElementById("view-mode");
@@ -171,7 +166,6 @@ function initApp() {
             const newMode = e.target.value;
             console.log("Mode changed to:", newMode);
 
-            // If switching to private without auth, trigger login
             if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
                 console.log("No token, triggering login");
                 login();
@@ -190,21 +184,6 @@ function initApp() {
     setInterval(fetchAndDisplayData, 30000);
 }
 
-function openClaimModal() {
-    const token = sessionStorage.getItem("auth_token");
-    if (!token) {
-        alert("Please log in first to claim a module.");
-        login();
-        return;
-    }
-
-    document.getElementById('claim-modal').style.display = 'flex';
-    document.getElementById('module-secret').value = '';
-    document.getElementById('claim-error').style.display = 'none';
-    document.getElementById('claim-success').style.display = 'none';
-    document.getElementById('module-secret').focus();
-}
-
 function closeClaimModal() {
     document.getElementById('claim-modal').style.display = 'none';
 }
@@ -215,7 +194,6 @@ async function claimModule() {
     const errorEl = document.getElementById('claim-error');
     const successEl = document.getElementById('claim-success');
 
-    // Clear previous messages
     errorEl.style.display = 'none';
     successEl.style.display = 'none';
 
@@ -248,7 +226,6 @@ async function claimModule() {
             successEl.textContent = `Success! Module ${data.module_id} has been claimed.`;
             successEl.style.display = 'block';
 
-            // Switch to private mode and refresh after a delay
             setTimeout(() => {
                 closeClaimModal();
                 currentMode = 'private';
@@ -355,11 +332,9 @@ async function fetchAndDisplayData() {
             const modules = json.modules || [];
             const heuristics = json.heuristics || [];
 
-            // Clear connection lines for private mode
             if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');
             if (map.getSource('connections')) map.removeSource('connections');
 
-            // Merge modules with heuristics
             mergedData = modules.map(m => {
                 const heuristic = heuristics.find(h => h.module_id === m.module_id);
 
@@ -667,5 +642,3 @@ async function updateLocation(moduleId) {
 }
 
 initAuth();
-
-

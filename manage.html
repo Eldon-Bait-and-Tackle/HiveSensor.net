@@ -1,51 +1,80 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Module Manager</title>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="hsn_logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HSN Manager (Secure)</title>
+
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="styles.css">
+
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        #status { margin-bottom: 20px; padding: 10px; border-radius: 4px; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        .success { background-color: #d4edda; color: #155724; }
-        button { padding: 10px 15px; cursor: pointer; }
-        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+        /* Extra styles for the auth status */
+        .auth-bar { background: #1e293b; color: white; padding: 5px 20px; font-size: 0.9em; display: flex; justify-content: space-between; align-items: center;}
+        .btn-logout { background: #ef4444; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-<h1>Module Management</h1>
-<div id="status">Checking authentication...</div>
-<div id="content" style="display:none;">
-    <button onclick="logout()">Logout</button>
-    <button onclick="loadModules()">Reload Modules</button>
-    <h3>Modules Data:</h3>
-    <pre id="dataOutput">Loading...</pre>
+<div id="app" class="container">
+    <div class="auth-bar">
+        <span id="auth-status">Checking access...</span>
+        <button onclick="logout()" class="btn-logout" id="logout-btn" style="display:none;">Logout</button>
+    </div>
+
+    <header class="header">
+        <div class="logo">
+            <img src="hsn_logo.svg" alt="Hive Sensor Network Logo" class="img_logo" onerror="this.style.display='none'"/>
+            <h1>Hive Sensor Network Manager</h1>
+        </div>
+        <nav class="nav">
+            <a href="/">Home</a>
+            <button id="refresh-btn" class="btn-link">Refresh Data</button>
+        </nav>
+    </header>
+
+    <main class="index-dashboard-grid" id="main-content" style="display:none;">
+        <div class="card">
+            <div id="map" class="map-wrapper" style="height: 400px; width: 100%;"></div>
+            <div id="loading" class="loader hidden"><div class="spinner"></div></div>
+            <div id="error" class="error-msg hidden"></div>
+        </div>
+
+        <div class="card">
+            <h3>Your Modules</h3>
+            <pre id="dataOutput" style="background:#f1f5f9; padding:10px; border-radius:4px; overflow:auto;">Loading data...</pre>
+        </div>
+    </main>
 </div>
 
 <script>
+    // --- 1. CONFIGURATION (Auth & API) ---
     const config = {
         authUrl: "https://auth.eldonbaitandtackle.net/realms/hsn_kc/protocol/openid-connect/auth",
         tokenUrl: "https://auth.eldonbaitandtackle.net/realms/hsn_kc/protocol/openid-connect/token",
-        clientId: "public_client",
+        clientId: "public_client",  // Match your Keycloak Client ID
         realm: "hsn_kc",
         redirectUri: "https://hsw.eldonbaitandtackle.net/manage",
         apiUrl: "https://hsw.eldonbaitandtackle.net"
     };
 
-    async function init() {
+    // --- 2. AUTHENTICATION LOGIC ---
+    async function initAuth() {
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
         const storedToken = sessionStorage.getItem("auth_token");
 
         if (code) {
-            updateStatus("Exchanging code for token...", "success");
+            updateStatus("Exchanging code...");
             await exchangeCode(code);
         } else if (storedToken) {
             showApp();
         } else {
-            login();
+            login(); // Redirect to Keycloak if not logged in
         }
     }
 
@@ -68,33 +97,69 @@
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: body
             });
-
             const data = await response.json();
-
             if (data.access_token) {
                 sessionStorage.setItem("auth_token", data.access_token);
                 window.history.replaceState({}, document.title, window.location.pathname);
                 showApp();
             } else {
-                updateStatus("Login failed: " + JSON.stringify(data), "error");
+                updateStatus("Login failed.");
             }
-        } catch (e) {
-            updateStatus("Network error during login.", "error");
-        }
+        } catch (e) { updateStatus("Auth Error"); }
     }
 
+    function logout() {
+        sessionStorage.removeItem("auth_token");
+        window.location.href = config.redirectUri;
+    }
+
+    function updateStatus(msg) {
+        document.getElementById("auth-status").textContent = msg;
+    }
+
+    // --- 3. APPLICATION LOGIC (The "Nice" Dashboard) ---
     function showApp() {
-        document.getElementById("content").style.display = "block";
-        updateStatus("Authenticated", "success");
-        loadModules();
+        document.getElementById("main-content").style.display = "grid"; // Show dashboard
+        document.getElementById("logout-btn").style.display = "block";
+        updateStatus("Authenticated as User");
+
+        // Initialize Map
+        initMap();
+        // Load Data
+        fetchSecureData();
     }
 
-    async function loadModules() {
+    // Map Setup
+    let map;
+    function initMap() {
+        map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '&copy; OpenStreetMap Contributors',
+                    }
+                },
+                layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+            },
+            center: [0, 20],
+            zoom: 2
+        });
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    }
+
+    // Fetch Protected Data
+    async function fetchSecureData() {
         const token = sessionStorage.getItem("auth_token");
         if (!token) return login();
 
         try {
-            const response = await fetch(`${config.apiUrl}?request=get_module`, {
+            // Using 'get_owned_modules' or 'get_module' based on your backend
+            const response = await fetch(`${config.apiUrl}/manage?request=get_owned_modules`, {
                 method: "GET",
                 headers: {
                     "Authorization": "Bearer " + token,
@@ -107,31 +172,24 @@
                 return login();
             }
 
-            const text = await response.text();
-            try {
-                const json = JSON.parse(text);
-                document.getElementById("dataOutput").textContent = JSON.stringify(json, null, 2);
-            } catch (e) {
-                document.getElementById("dataOutput").textContent = text;
-            }
+            const json = await response.json();
+
+            // Display Raw Data for now (since we aren't sure of the exact format of 'get_owned_modules')
+            document.getElementById("dataOutput").textContent = JSON.stringify(json, null, 2);
+
+            // If the data contains location info, you can add markers to the map here:
+            // if (json.modules) { ... add markers ... }
 
         } catch (e) {
-            document.getElementById("dataOutput").textContent = "Error fetching data: " + e.message;
+            document.getElementById("dataOutput").textContent = "Error loading data: " + e.message;
         }
     }
 
-    function logout() {
-        sessionStorage.removeItem("auth_token");
-        window.location.href = config.redirectUri;
-    }
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', fetchSecureData);
 
-    function updateStatus(msg, type) {
-        const el = document.getElementById("status");
-        el.textContent = msg;
-        el.className = type;
-    }
-
-    init();
+    // Start
+    initAuth();
 </script>
 </body>
 </html>

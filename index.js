@@ -61,48 +61,34 @@ function login() {
 }
 
 async function exchangeCode(code) {
-    const body = new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: config.clientId,
-        code: code,
-        redirect_uri: config.redirectUri
-    });
-
     try {
         console.log("=== Token Exchange Request ===");
-        console.log("Token URL:", config.tokenUrl);
-        console.log("Client ID:", config.clientId);
-        console.log("Redirect URI:", config.redirectUri);
         console.log("Code:", code);
+        console.log("Using backend proxy for token exchange...");
 
-        const response = await fetch(config.tokenUrl, {
+        // Use our backend as a proxy to avoid CORS issues with Keycloak
+        const response = await fetch(`${config.apiUrl}?request=exchange_token`, {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: body.toString()
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code: code,
+                redirect_uri: config.redirectUri
+            })
         });
 
         console.log("Response status:", response.status);
-        console.log("Response headers:", Object.fromEntries(response.headers.entries()));
 
         if (!response.ok) {
             const errorText = await response.text();
             console.error("=== Token Exchange FAILED ===");
             console.error("Status:", response.status);
             console.error("Error:", errorText);
-            try {
-                const errorJson = JSON.parse(errorText);
-                console.error("Error details:", errorJson);
-            } catch(e) {
-                console.error("Raw error:", errorText);
-            }
             return false;
         }
 
         const data = await response.json();
         console.log("=== Token Exchange SUCCESS ===");
-        console.log("Response data keys:", Object.keys(data));
         console.log("Has access_token:", !!data.access_token);
-        console.log("Token preview:", data.access_token ? data.access_token.substring(0, 50) + "..." : "none");
 
         if (data.access_token) {
             sessionStorage.setItem("auth_token", data.access_token);

@@ -16,33 +16,44 @@ let barChartInstance = null;
 let doughnutChartInstance = null;
 
 // --- AUTH LOGIC ---
-async function initAuth() {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+function initApp() {
     const storedToken = sessionStorage.getItem("auth_token");
+    const desired = sessionStorage.getItem("desired_mode");
 
-    if (code) {
-        updateStatus("Exchanging code...");
-        await exchangeCode(code);
-
-        // CHECK: If token is missing after exchange, clear persistent state to prevent loop
-        if (!sessionStorage.getItem("auth_token")) {
-            sessionStorage.removeItem("desired_mode");
-            console.error("Token exchange failed. Reverting to public mode.");
-        }
-
-        window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (storedToken) {
-        updateStatus("Authenticated");
-        document.getElementById("logout-btn").style.display = "block";
+    if (desired === "private" && storedToken) {
+        const sel = document.getElementById("view-mode");
+        if(sel) sel.value = "private";
+        currentMode = "private";
+        sessionStorage.removeItem("desired_mode");
+    } else {
+        // Safety: If we wanted private but have no token, force public to stop loop
+        if (desired) sessionStorage.removeItem("desired_mode");
+        currentMode = "public";
+        const sel = document.getElementById("view-mode");
+        if(sel) sel.value = "public";
     }
 
-    initApp();
+    initMap();
+
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', fetchAndDisplayData);
+
+    const modeSelect = document.getElementById('view-mode');
+    if (modeSelect) {
+        modeSelect.addEventListener('change', (e) => {
+            currentMode = e.target.value;
+            fetchAndDisplayData();
+        });
+    }
+
+    fetchAndDisplayData();
+    setInterval(fetchAndDisplayData, 30000);
 }
 
 function login() {
     sessionStorage.setItem("desired_mode", "private");
-    const url = `${config.authUrl}?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(window.location.href)}&scope=openid`;
+    const redirectUri = window.location.href.split('?')[0];
+    const url = `${config.authUrl}?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid`;
     window.location.href = url;
 }
 

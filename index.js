@@ -14,18 +14,27 @@ let barChartInstance = null;
 let doughnutChartInstance = null;
 
 async function initAuth() {
+    console.log("=== initAuth started ===");
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const storedToken = sessionStorage.getItem("auth_token");
 
+    console.log("Code from URL:", code);
+    console.log("Stored token exists:", !!storedToken);
+    console.log("Desired mode:", sessionStorage.getItem("desired_mode"));
+
     if (code) {
+        console.log("Found auth code, exchanging...");
         updateStatus("Exchanging code...");
         await exchangeCode(code);
 
         // Clear the code from URL
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        if (sessionStorage.getItem("auth_token")) {
+        const newToken = sessionStorage.getItem("auth_token");
+        console.log("Token after exchange:", !!newToken);
+
+        if (newToken) {
             updateStatus("Authenticated");
             document.getElementById("logout-btn").style.display = "block";
         } else {
@@ -34,10 +43,12 @@ async function initAuth() {
             console.error("Token exchange failed. Reverting to public mode.");
         }
     } else if (storedToken) {
+        console.log("Using existing token");
         updateStatus("Authenticated");
         document.getElementById("logout-btn").style.display = "block";
     }
 
+    console.log("=== calling initApp ===");
     initApp();
 }
 
@@ -58,32 +69,57 @@ async function exchangeCode(code) {
     });
 
     try {
-        console.log("Exchanging code for token...");
+        console.log("=== Token Exchange Request ===");
+        console.log("Token URL:", config.tokenUrl);
+        console.log("Client ID:", config.clientId);
+        console.log("Redirect URI:", config.redirectUri);
+        console.log("Code:", code);
+
         const response = await fetch(config.tokenUrl, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: body.toString()
         });
 
+        console.log("Response status:", response.status);
+        console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Token exchange failed:", response.status, errorText);
-            return;
+            console.error("=== Token Exchange FAILED ===");
+            console.error("Status:", response.status);
+            console.error("Error:", errorText);
+            try {
+                const errorJson = JSON.parse(errorText);
+                console.error("Error details:", errorJson);
+            } catch(e) {
+                console.error("Raw error:", errorText);
+            }
+            return false;
         }
 
         const data = await response.json();
-        console.log("Token received successfully");
+        console.log("=== Token Exchange SUCCESS ===");
+        console.log("Response data keys:", Object.keys(data));
+        console.log("Has access_token:", !!data.access_token);
+        console.log("Token preview:", data.access_token ? data.access_token.substring(0, 50) + "..." : "none");
 
         if (data.access_token) {
             sessionStorage.setItem("auth_token", data.access_token);
             if (data.refresh_token) {
                 sessionStorage.setItem("refresh_token", data.refresh_token);
             }
+            console.log("Token stored in sessionStorage");
+            return true;
         } else {
             console.error("No access token in response:", data);
+            return false;
         }
     } catch (e) {
-        console.error("Auth Error:", e);
+        console.error("=== Token Exchange ERROR ===");
+        console.error("Exception:", e);
+        console.error("Stack:", e.stack);
+        return false;
     }
 }
 
@@ -108,11 +144,16 @@ function updateStatus(msg) {
 }
 
 function initApp() {
+    console.log("=== initApp started ===");
     const storedToken = sessionStorage.getItem("auth_token");
     const desired = sessionStorage.getItem("desired_mode");
 
+    console.log("Token exists:", !!storedToken);
+    console.log("Desired mode:", desired);
+
     // If we just authenticated and wanted private mode, switch to it
     if (desired === "private" && storedToken) {
+        console.log("Setting mode to private after auth");
         const sel = document.getElementById("view-mode");
         if(sel) sel.value = "private";
         currentMode = "private";
@@ -122,11 +163,14 @@ function initApp() {
         if (desired) sessionStorage.removeItem("desired_mode");
 
         // Default to public
+        console.log("Defaulting to public mode");
         currentMode = "public";
         const sel = document.getElementById("view-mode");
         if(sel) sel.value = "public";
     }
 
+    console.log("Current mode set to:", currentMode);
+    console.log("Initializing map...");
     initMap();
 
     const refreshBtn = document.getElementById('refresh-btn');
@@ -136,9 +180,11 @@ function initApp() {
     if (modeSelect) {
         modeSelect.addEventListener('change', (e) => {
             const newMode = e.target.value;
+            console.log("Mode changed to:", newMode);
 
             // If switching to private without auth, trigger login
             if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
+                console.log("No token, triggering login");
                 login();
                 return;
             }
@@ -146,10 +192,30 @@ function initApp() {
             currentMode = newMode;
             fetchAndDisplayData();
         });
+    } else {
+        console.error("Mode select element not found!");
     }
 
+    console.log("Calling initial fetchAndDisplayData...");
     fetchAndDisplayData();
     setInterval(fetchAndDisplayData, 30000);
+}Select) {
+    modeSelect.addEventListener('change', (e) => {
+        const newMode = e.target.value;
+
+        // If switching to private without auth, trigger login
+        if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
+            login();
+            return;
+        }
+
+        currentMode = newMode;
+        fetchAndDisplayData();
+    });
+}
+
+fetchAndDisplayData();
+setInterval(fetchAndDisplayData, 30000);
 }
 
 function initMap() {

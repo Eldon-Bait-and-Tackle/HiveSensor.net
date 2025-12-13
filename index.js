@@ -3,7 +3,7 @@
     tokenUrl: "https://auth.eldonbaitandtackle.net/realms/hsn_kc/protocol/openid-connect/token",
     clientId: "public_client",
     realm: "hsn_kc",
-    redirectUri: "https://hsw.eldonbaitandtackle.net/dashboard",
+    redirectUri: "https://hsw.eldonbaitandtackle.net",
     apiUrl: "https://hsn.eldonbaitandtackle.net/api"
 };
 
@@ -39,6 +39,7 @@ async function initAuth() {
 function login() {
     sessionStorage.setItem("desired_mode", "private");
     const redirectUri = window.location.href.split('?')[0];
+
     const url = `${config.authUrl}?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid`;
     window.location.href = url;
 }
@@ -223,6 +224,8 @@ async function fetchAndDisplayData() {
 }
 
 function renderVisuals(data) {
+    data.sort((a, b) => String(a.module_id).localeCompare(String(b.module_id), undefined, { numeric: true }));
+
     markers.forEach(marker => marker.remove());
     markers.length = 0;
     const bounds = new maplibregl.LngLatBounds();

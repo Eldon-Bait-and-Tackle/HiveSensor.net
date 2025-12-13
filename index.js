@@ -24,14 +24,19 @@ async function initAuth() {
     if (code) {
         updateStatus("Exchanging code...");
         await exchangeCode(code);
-        // Clean URL
+
+        // CHECK: If token is missing after exchange, clear persistent state to prevent loop
+        if (!sessionStorage.getItem("auth_token")) {
+            sessionStorage.removeItem("desired_mode");
+            console.error("Token exchange failed. Reverting to public mode.");
+        }
+
         window.history.replaceState({}, document.title, window.location.pathname);
     } else if (storedToken) {
         updateStatus("Authenticated");
         document.getElementById("logout-btn").style.display = "block";
     }
 
-    // Initialize App
     initApp();
 }
 

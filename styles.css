@@ -35,6 +35,13 @@ body {
     min-height: 100vh;
 }
 
+#app{
+    
+    
+    
+    
+}
+
 .container {
     margin: 0 auto;
     padding: 2rem 1rem;
@@ -114,7 +121,6 @@ body {
 
 .card {
     background: var(--bg-surface);
-    border-radius: var(--radius);
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
     overflow: hidden;

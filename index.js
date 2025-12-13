@@ -587,7 +587,7 @@ function updateCharts(data) {
 }
 
 function openClaimModal() {
-    console.log("Claim button clicked!"); // Debug log
+    console.log("Claim button clicked!");
 
     const token = sessionStorage.getItem("auth_token");
 

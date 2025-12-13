@@ -562,4 +562,37 @@ function updateCharts(data) {
     }
 }
 
+function openClaimModal() {
+    console.log("Claim button clicked!"); // Debug log
+
+    const token = sessionStorage.getItem("auth_token");
+
+    if (!token) {
+        console.log("No token found, redirecting to login.");
+        alert("Please log in first to claim a module.");
+        login();
+        return;
+    }
+
+    const modal = document.getElementById('claim-modal');
+    if (modal) {
+        console.log("Showing modal...");
+        modal.style.display = 'flex';
+
+        const input = document.getElementById('module-secret');
+        if(input) {
+            input.value = '';
+            input.focus();
+        }
+
+        const err = document.getElementById('claim-error');
+        const succ = document.getElementById('claim-success');
+        if(err) err.style.display = 'none';
+        if(succ) succ.style.display = 'none';
+    } else {
+        console.error("Error: Could not find element with id 'claim-modal'");
+        alert("Error: Modal HTML is missing.");
+    }
+}
+
 initAuth();

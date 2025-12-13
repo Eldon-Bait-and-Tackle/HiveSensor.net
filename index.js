@@ -22,12 +22,17 @@ async function initAuth() {
         updateStatus("Exchanging code...");
         await exchangeCode(code);
 
-        if (!sessionStorage.getItem("auth_token")) {
+        // Clear the code from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        if (sessionStorage.getItem("auth_token")) {
+            updateStatus("Authenticated");
+            document.getElementById("logout-btn").style.display = "block";
+        } else {
+            updateStatus("");
             sessionStorage.removeItem("desired_mode");
             console.error("Token exchange failed. Reverting to public mode.");
         }
-
-        window.history.replaceState({}, document.title, window.location.pathname);
     } else if (storedToken) {
         updateStatus("Authenticated");
         document.getElementById("logout-btn").style.display = "block";
@@ -38,7 +43,7 @@ async function initAuth() {
 
 function login() {
     sessionStorage.setItem("desired_mode", "private");
-    const redirectUri = window.location.href.split('?')[0];
+    const redirectUri = config.redirectUri;
 
     const url = `${config.authUrl}?client_id=${config.clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=openid`;
     window.location.href = url;
@@ -49,28 +54,52 @@ async function exchangeCode(code) {
         grant_type: "authorization_code",
         client_id: config.clientId,
         code: code,
-        redirect_uri: window.location.href.split('?')[0]
+        redirect_uri: config.redirectUri
     });
 
     try {
+        console.log("Exchanging code for token...");
         const response = await fetch(config.tokenUrl, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: body
+            body: body.toString()
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Token exchange failed:", response.status, errorText);
+            return;
+        }
+
         const data = await response.json();
+        console.log("Token received successfully");
+
         if (data.access_token) {
             sessionStorage.setItem("auth_token", data.access_token);
-            document.getElementById("logout-btn").style.display = "block";
-            updateStatus("Authenticated");
+            if (data.refresh_token) {
+                sessionStorage.setItem("refresh_token", data.refresh_token);
+            }
+        } else {
+            console.error("No access token in response:", data);
         }
-    } catch (e) { console.error("Auth Error", e); }
+    } catch (e) {
+        console.error("Auth Error:", e);
+    }
 }
 
 function logout() {
     sessionStorage.removeItem("auth_token");
+    sessionStorage.removeItem("refresh_token");
     sessionStorage.removeItem("desired_mode");
-    window.location.reload();
+    document.getElementById("logout-btn").style.display = "none";
+    updateStatus("");
+
+    // Switch back to public mode
+    currentMode = 'public';
+    const sel = document.getElementById("view-mode");
+    if(sel) sel.value = "public";
+
+    fetchAndDisplayData();
 }
 
 function updateStatus(msg) {
@@ -78,26 +107,21 @@ function updateStatus(msg) {
     if(el) el.textContent = msg;
 }
 
-function checkAuthOrLogin() {
-    const token = sessionStorage.getItem("auth_token");
-    if (!token) {
-        login();
-        return false;
-    }
-    return token;
-}
-
 function initApp() {
     const storedToken = sessionStorage.getItem("auth_token");
     const desired = sessionStorage.getItem("desired_mode");
 
+    // If we just authenticated and wanted private mode, switch to it
     if (desired === "private" && storedToken) {
         const sel = document.getElementById("view-mode");
         if(sel) sel.value = "private";
         currentMode = "private";
         sessionStorage.removeItem("desired_mode");
     } else {
+        // Clean up any stale desired_mode
         if (desired) sessionStorage.removeItem("desired_mode");
+
+        // Default to public
         currentMode = "public";
         const sel = document.getElementById("view-mode");
         if(sel) sel.value = "public";
@@ -116,7 +140,7 @@ function initApp() {
             // If switching to private without auth, trigger login
             if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
                 login();
-                return; // Don't change mode yet, wait for auth
+                return;
             }
 
             currentMode = newMode;
@@ -182,23 +206,13 @@ async function fetchAndDisplayData() {
             });
 
         } else {
-            // Check for token before making request
             const token = sessionStorage.getItem("auth_token");
             if (!token) {
-                // Revert to public mode if no token
-                currentMode = 'public';
-                const sel = document.getElementById('view-mode');
-                if(sel) sel.value = 'public';
-
-                if (errorEl) {
-                    errorEl.classList.remove('hidden');
-                    errorEl.textContent = 'Authentication required for private mode. Switched to public view.';
-                }
-
-                // Retry with public mode
-                return fetchAndDisplayData();
+                console.error("No token available for private mode");
+                throw new Error("Authentication required");
             }
 
+            console.log("Fetching owned modules...");
             const response = await fetch(`${config.apiUrl}?request=get_owned_modules`, {
                 method: "GET",
                 headers: {
@@ -207,30 +221,53 @@ async function fetchAndDisplayData() {
                 }
             });
 
+            console.log("Response status:", response.status);
+
             if (response.status === 401) {
+                console.error("Token expired or invalid");
                 logout();
                 return;
             }
 
-            const json = await response.json();
-            const modules = json.modules || [];
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("API Error:", response.status, errorText);
+                throw new Error(`API returned ${response.status}`);
+            }
 
+            const json = await response.json();
+            console.log("Received data:", json);
+
+            const modules = json.modules || [];
+            const heuristics = json.heuristics || [];
+
+            // Clear connection lines for private mode
             if (map.getLayer('connections-layer')) map.removeLayer('connections-layer');
             if (map.getSource('connections')) map.removeSource('connections');
 
+            // Merge modules with heuristics
             mergedData = modules.map(m => {
+                const heuristic = heuristics.find(h => h.module_id === m.module_id);
+
                 let lat = 0, long = 0;
-                if (Array.isArray(m.location)) { lat = m.location[0]; long = m.location[1]; }
-                else if (m.location && m.location.lat) { lat = m.location.lat; long = m.location.long; }
+                if (m.location) {
+                    if (m.location.lat !== undefined) {
+                        lat = m.location.lat;
+                        long = m.location.long;
+                    } else if (Array.isArray(m.location)) {
+                        lat = m.location[0];
+                        long = m.location[1];
+                    }
+                }
 
                 return {
-                    module_id: m.module_id || m.id || "Unknown",
+                    module_id: m.module_id,
                     lat: clampLat(lat),
                     long: long,
-                    self_temp: m.self_temp || 0,
-                    deviation: m.deviation || 0,
-                    avg_neighbor_temp: m.avg_neighbor_temp || 0,
-                    within_range: m.within_range !== undefined ? m.within_range : true
+                    self_temp: heuristic ? heuristic.self_temp : 0,
+                    deviation: heuristic ? heuristic.deviation : 0,
+                    avg_neighbor_temp: heuristic ? (heuristic.avg_neighbor_temp === "no_neighbors" ? 0 : heuristic.avg_neighbor_temp) : 0,
+                    within_range: heuristic ? heuristic.within_range : true
                 };
             });
         }
@@ -238,7 +275,7 @@ async function fetchAndDisplayData() {
         renderVisuals(mergedData);
 
     } catch (error) {
-        console.error(error);
+        console.error("Fetch error:", error);
         if (errorEl) {
             errorEl.classList.remove('hidden');
             errorEl.textContent = `Error: ${error.message}`;
@@ -384,7 +421,7 @@ function updateCharts(data) {
                     y: { display: false, grid: { display: false } },
                     x: { display: false, grid: { display: false } }
                 }
-            } 
+            }
         });
     }
 

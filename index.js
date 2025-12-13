@@ -199,23 +199,6 @@ function initApp() {
     console.log("Calling initial fetchAndDisplayData...");
     fetchAndDisplayData();
     setInterval(fetchAndDisplayData, 30000);
-}Select) {
-    modeSelect.addEventListener('change', (e) => {
-        const newMode = e.target.value;
-
-        // If switching to private without auth, trigger login
-        if (newMode === 'private' && !sessionStorage.getItem('auth_token')) {
-            login();
-            return;
-        }
-
-        currentMode = newMode;
-        fetchAndDisplayData();
-    });
-}
-
-fetchAndDisplayData();
-setInterval(fetchAndDisplayData, 30000);
 }
 
 function initMap() {
